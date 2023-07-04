@@ -12,13 +12,6 @@ Our hope is that this tool would suggest previously unexpected correlations acro
 
 ## Example code with timeseries
 
-```{r, load_packages, results='hide'}
-# install useful packages
-library(fda)
-library(dtwclust)
-library(ggplot2)
-```
-
 We can, for example, reduce daily fluctuations in climate data to fit more sparse timeseries. First, we need to create a periodic basis to fit our functions to.
 
 ```{r, climate_data_example}
@@ -27,8 +20,8 @@ We can, for example, reduce daily fluctuations in climate data to fit more spars
 nbasis <- 10
 rng_of_timeseries <- c(1, 2*365)
 arg_vals_days <- 1:(2*365)
-eg_fourier_basis <- create.fourier.basis(rangeval = rng_of_timeseries,
-                                         nbasis = nbasis)
+eg_fourier_basis <- fda::create.fourier.basis(rangeval = rng_of_timeseries,
+                                              nbasis = nbasis)
 plot(eg_fourier_basis,
      ylab = "Basis function value",
      xlab = "Time (days)")
@@ -50,8 +43,8 @@ plot(arg_vals_days, eg_fluc_data, type = 'l',
 We can then plot the fit of the Fourier basis to this timeseries data. **This isn't a perfect fit - so we will require the user to adjust parameters to make a good fit by eye!**
 
 ```{r, fit_to_fluctuating_data}
-fit_output <- smooth.basis(arg_vals_days, y = eg_fluc_data, 
-                           fdParobj = eg_fourier_basis)
+fit_output <- fda::smooth.basis(arg_vals_days, y = eg_fluc_data, 
+                                fdParobj = eg_fourier_basis)
 
 plot(fit_output, col = "red",
      xlab = "Time (days)", ylab = "Measurement")
