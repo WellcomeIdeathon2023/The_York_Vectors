@@ -11,7 +11,7 @@ Note: this uses R version 4.2.3. \*I'm unsure whether `renv` can install a new v
 This is your private repository for working on the challenges in the Wellcome Data Science Ideathon. This repository is maintained and monitored by Wellcome staff and will be made public after July 13 2023. Feel free to create additional folders in this repository but please use the existing ones as follows:
 
 -   `data` - Any data that is loaded from your scripts (excluding data scraped/downloaded from the web) should be uploaded to this folder. Simulated data should be reproducible.
--   `code` - All code used as part of your solution should be uploaded this folder and is expected to be reproducible.
+-   `R` - All code used as part of your solution should be uploaded this folder and is expected to be reproducible. **THIS HAS BEEN CHANGED FROM FOLDER** `code`
 -   `results` - Final results, including presented slides and other content, should be uploaded to this folder.
 
 ## LICENCE
