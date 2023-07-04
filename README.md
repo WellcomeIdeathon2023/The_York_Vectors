@@ -4,6 +4,8 @@
 
 This project uses [`renv`](https://rstudio.github.io/renv/articles/collaborating.html) to allow for reproducibility. By loading this project, `renv` will install itself automatically. You should then run `renv::install()` in the console to install the appropriate R packages.
 
+Note: this uses R version 4.2.3. \*I'm unsure whether `renv` can install a new version of R, so please check you have the right one!\*
+
 ## Default information from the Ideathon team
 
 This is your private repository for working on the challenges in the Wellcome Data Science Ideathon. This repository is maintained and monitored by Wellcome staff and will be made public after July 13 2023. Feel free to create additional folders in this repository but please use the existing ones as follows:
