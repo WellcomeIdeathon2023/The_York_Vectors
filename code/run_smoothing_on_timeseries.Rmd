@@ -1,0 +1,137 @@
+# Run some basic smoothing on a timeseries
+
+## Create functions
+
+```{r,create_funcs}
+#' Fit a spline to a collection of timeseries, with a possible roughness penalty
+#'
+#' @param data_to_smooth A data frame. Rows correspond to different time points
+#' and columns correspond to different variables.
+#' @param timepoints A vector (numeric). Corresponds to the measurement 
+#' timepoints of each variable.
+#' @param nbasis_in Integer. The number of basis functions to use.
+#' @param lambda_in Float. Defaults to 0. The value of the smoothing parameter,
+#' lambda.
+#' @param basis_type String. Defaults to "fourier". Can be either "fourier" or
+#' "bspline" to select different families of basis functions.
+#' @param norder_in Integer. Defaults to 4. Only relevant if basis_type = 
+#' TRUE. Controls the order of the bspline functions.
+#'
+#' @return An fdSmooth object.
+fits_from_params <- function(data_to_smooth,
+                             timepoints,
+                             nbasis_in,
+                             lambda_in = 0,
+                             basis_type = "fourier",
+                             norder_in = 4) {
+  range_of_timeseries <- c(min(timepoints), max(timepoints))
+  
+  penalty_basis <- switch(
+    basis_type,
+    fourier = fda::create.fourier.basis(
+      rangeval = range_of_timeseries,
+      nbasis = nbasis_in,
+      
+    ),
+    bspline = fda::create.bspline.basis(
+      rangeval = range_of_timeseries,
+      nbasis = nbasis_in,
+      norder = norder_in
+    )
+  )
+  
+  if (is.null(penalty_basis)) {
+    stop('basis_type not recognised - must be "fourier" or "bspline"')
+  }
+  
+  
+  # Define a linear differential operator
+  second_deriv_operator = fda::int2Lfd(2)
+  
+  fd_params = fda::fdPar(penalty_basis, second_deriv_operator, lambda_in)
+  fd_outputs = fda::smooth.basis(
+    timepoints,
+    data_to_smooth, 
+    fd_params
+  )
+  
+  return(fd_outputs)
+  
+}
+```
+
+```{r, timeseries_smoothing}
+
+#' Generate some toy climate timeseries
+#' 
+#' @param arg_vals_days Vector (numeric). The timepoints for evaluation.
+#' @param num_reps Numeric. Number of different timeseries.
+#' @param mean_of_noise Numeric. Mean of noise (within ARIMA model).
+#' @param spread_trends Numeric. Spread of the trends about 0.
+#' @param spread_consts Numeric. Spread of the const values about 40.
+generate_toy_climate_data <- function(
+  arg_vals_days = 1:(2*365),
+  num_reps = 2,
+  mean_of_noise = 0.02,
+  spread_trends = 5,
+  spread_consts = 10,
+  seed_in = 123
+){
+  set.seed(seed_in)  # for reproducibility
+  trends = runif(num_reps, min = -spread_trends, max = spread_trends)
+  consts = runif(num_reps, min = 40 - spread_consts, max = 40 + spread_consts)
+  
+  eg_df <- data.frame(matrix(nrow = length(arg_vals_days),
+                             ncol = num_reps))
+  colnames(eg_df) <- 1:num_reps
+  
+  for (j in 1:num_reps) {
+    eg_fluc_data <- sapply(
+      arg_vals_days,
+      function(i) {
+        consts[j] + trends[j]*(i/365)**2 + 5*cos(i*2*pi/365) + 0.3 * sin(i*pi/3)
+      }
+    ) + arima.sim(
+      length(arg_vals_days), 
+      mean = mean_of_noise,
+      model = list(order = c(1,0,0), ar = 0.9)
+    )
+    eg_df[, j] <- eg_fluc_data
+  }
+  return(eg_df)
+}
+
+matplot(
+  generate_toy_climate_data(num_reps = 5,
+                            spread_consts = 10), 
+  type = 'l', 
+  col = 1:5, 
+  lty = 1,
+  main = "Examples of simulated timeseries",
+  xlab = "Time (days)",
+  ylab = "Value"
+)
+```
+
+You can fit this data multiple ways:
+- a standard fourier basis, with few basis functions
+- a standard fourier basis, with many basis functions, and smoothing
+- same as above but with bspline basis
+
+```{r, smooth}
+basic_output_fits <- fits_from_params(
+  as.matrix(eg_df),
+  arg_vals_days,
+  10,
+  lambda_in = 50,
+  basis_type = "fourier"
+)
+
+matplot(eg_df, type = 'l', col = 1:num_reps, lty = 1,
+        main = "Examples of fits to timeseries",
+        xlab = "Time (days)",
+        ylab = "Value")
+lines(basic_output_fits, 
+      col = 1:num_reps,
+      lty = 1)
+```
