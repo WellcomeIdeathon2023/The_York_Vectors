@@ -18,7 +18,6 @@
 #' TRUE. Controls the order of the bspline functions.
 #'
 #' @return An fdSmooth object.
-#' @export
 fits_from_params <- function(data_to_smooth,
                              timepoints,
                              nbasis_in,
@@ -99,10 +98,15 @@ You can fit this data multiple ways:
 basic_output_fits <- fits_from_params(
   as.matrix(eg_df),
   arg_vals_days,
-  4
+  10,
+  lambda_in = 5,
+  basis_type = "bspline",
+  norder = 4
 )
 
-plot(basic_output_fits, col = 1:num_reps,
-     main = "Unregularised fourier fit",
-     lty = 1)
+matplot(eg_df, type = 'l', col = 1:num_reps, lty = 1)
+lines(basic_output_fits, 
+      col = 1:num_reps,
+      main = "Unregularised fourier fit",
+      lty = 1)
 ```
