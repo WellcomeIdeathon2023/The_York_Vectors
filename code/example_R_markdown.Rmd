@@ -2,12 +2,11 @@
 
 Climate data is often recorded at high temporal- and spatial-resolutions. This is in contrast to economic data, which is often reported publically only as summaries every financial quarter or year. This leaves us with a difficult statistical problem: how do we compare the two fundamentally different timeseries?
 
-We propose a tool which would allow users to search economic datasets against a wealth of climate data. Specifically, we aim to find climate timeseries which are correlated with the input, allowing for 'stretching' or 'lag' of these timeseries. A clear example can be understood as a time-delay system, e.g., the output of CO 2
-  emissions from transport is delayed from the extraction of the raw fossil fuels used to produce the petrol.
+We propose a tool which would allow users to search economic datasets against a wealth of climate data. Specifically, we aim to find climate timeseries which are correlated with the input, allowing for 'stretching' or 'lag' of these timeseries. A clear example can be understood as a time-delay system, e.g., the output of CO 2 emissions from transport is delayed from the extraction of the raw fossil fuels used to produce the petrol.
 
 Our hope is that this tool would suggest previously unexpected correlations across domains. Users could use the suggested correlated climate data when developing more robust models.
 
-```{r, load_packages, results='hide', fig.height=4}
+```{r, load_packages, results='hide'}
 # install useful packages
 library(fda)
 library(dtwclust)
