@@ -1,6 +1,8 @@
-# Functions in this file do basic smoothing, integration, and other 
-# manipulations high time-resolution data
+# Run some basic smoothing on a timeseries
 
+## Create functions
+
+```{r,create_funcs}
 #' Fit a spline to a collection of timeseries, with a possible roughness penalty
 #'
 #' @param data_to_smooth A data frame. Rows correspond to different time points
@@ -57,3 +59,50 @@ fits_from_params <- function(data_to_smooth,
   return(fd_outputs)
   
 }
+```
+
+```{r, timeseries_smoothing}
+
+# generate some toy data
+
+set.seed(123)  # for reproducibility
+
+arg_vals_days <- 1:(2*365)
+num_reps <- 5
+mean_of_noise <- 0.2
+eg_trends <- runif(num_reps, min = -5, max = 5)  # allows for different trend lines
+
+eg_df <- data.frame(matrix(nrow = length(arg_vals_days),
+                           ncol = num_reps))
+colnames(eg_df) <- 1:num_reps
+
+for (j in 1:num_reps) {
+  eg_fluc_data <- sapply(
+    arg_vals_days,
+    function(i) {
+      40 + eg_trends[j]*(i/365)**2 + 5*cos(i*2*pi/365) + 0.3 * sin(i*pi/3)
+    }
+  ) + rnorm(length(arg_vals_days), mean = mean_of_noise)
+  eg_df[, j] <- eg_fluc_data
+}
+
+
+matplot(eg_df, type = 'l', col = 1:num_reps, lty = 1)
+```
+
+You can fit this data multiple ways:
+- a standard fourier basis, with few basis functions
+- a standard fourier basis, with many basis functions, and smoothing
+- same as above but with bspline basis
+
+```{r, smooth}
+basic_output_fits <- fits_from_params(
+  as.matrix(eg_df),
+  arg_vals_days,
+  4
+)
+
+plot(basic_output_fits, col = 1:num_reps,
+     main = "Unregularised fourier fit",
+     lty = 1)
+```
