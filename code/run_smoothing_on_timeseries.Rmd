@@ -92,7 +92,7 @@ generate_toy_climate_data <- function(
         consts[j] + trends[j]*(i/365)**2 + 5*cos(i*2*pi/365) + 0.3 * sin(i*pi/3)
       }
     ) + arima.sim(
-      length(arg_vals_days), 
+      length(arg_vals_days),
       mean = mean_of_noise,
       model = list(order = c(1,0,0), ar = 0.9)
     )
@@ -119,19 +119,45 @@ You can fit this data multiple ways:
 - same as above but with bspline basis
 
 ```{r, smooth}
+example_data <- generate_toy_climate_data(num_reps = 5,
+                            spread_consts = 10)
+arg_vals_days <- 1:(2*365)
+
 basic_output_fits <- fits_from_params(
-  as.matrix(eg_df),
+  as.matrix(example_data),
   arg_vals_days,
   10,
   lambda_in = 50,
   basis_type = "fourier"
 )
 
-matplot(eg_df, type = 'l', col = 1:num_reps, lty = 1,
+matplot(example_data, type = 'l', col = 1:5, lty = 1,
         main = "Examples of fits to timeseries",
         xlab = "Time (days)",
         ylab = "Value")
 lines(basic_output_fits, 
-      col = 1:num_reps,
+      col = 1:5,
       lty = 1)
+```
+
+You can also smooth this data by taking the rolling average:
+
+```{r, rolling_average}
+
+rolling_data <- apply(example_data, 2, function(col_in) {
+  zoo::rollmean(col_in, k = 100)
+})
+
+matplot(rolling_data, type = 'l', col = 1:5, lty = 1,
+        main = "Rolling average of timeseries",
+        xlab = "Time (days)",
+        ylab = "Value")
+```
+
+## Simluating economic data
+
+For now, we can simulate some economic data by taking subsets of the climate data at specific timepoints.
+
+```{r, simulate_economic_data}
+
 ```
