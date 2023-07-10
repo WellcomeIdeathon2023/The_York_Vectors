@@ -1,6 +1,63 @@
 # Run some basic smoothing on a timeseries
 
-## Create functions
+## Climate data simulation
+
+Example of simulated climate data. This has a general (quadratic) trend with an auto-regressive noise model on top. Multiple replicates are returned, with randomly assigned trend parameters assigned.
+
+```{r, timeseries_smoothing}
+
+#' Generate some toy climate timeseries
+#' 
+#' @param arg_vals_days Vector (numeric). The timepoints for evaluation.
+#' @param num_reps Numeric. Number of different timeseries.
+#' @param mean_of_noise Numeric. Mean of noise (within ARIMA model).
+#' @param spread_trends Numeric. Spread of the trends about 0.
+#' @param spread_consts Numeric. Spread of the const values about 40.
+generate_toy_climate_data <- function(
+  arg_vals_days = 1:(2*365),
+  num_reps = 2,
+  mean_of_noise = 0.02,
+  spread_trends = 5,
+  spread_consts = 10,
+  seed_in = 123
+){
+  set.seed(seed_in)  # for reproducibility
+  trends = runif(num_reps, min = -spread_trends, max = spread_trends)
+  consts = runif(num_reps, min = 40 - spread_consts, max = 40 + spread_consts)
+  
+  eg_df <- data.frame(matrix(nrow = length(arg_vals_days),
+                             ncol = num_reps))
+  colnames(eg_df) <- 1:num_reps
+  
+  for (j in 1:num_reps) {
+    eg_fluc_data <- sapply(
+      arg_vals_days,
+      function(i) {
+        consts[j] + trends[j]*(i/365)**2 + 5*cos(i*2*pi/365) + 0.3 * sin(i*pi/3)
+      }
+    ) + arima.sim(
+      length(arg_vals_days),
+      mean = mean_of_noise,
+      model = list(order = c(1,0,0), ar = 0.9)
+    )
+    eg_df[, j] <- eg_fluc_data
+  }
+  return(eg_df)
+}
+
+matplot(
+  generate_toy_climate_data(num_reps = 5,
+                            spread_consts = 10), 
+  type = 'l', 
+  col = 1:5, 
+  lty = 1,
+  main = "Examples of simulated timeseries",
+  xlab = "Time (days)",
+  ylab = "Value"
+)
+```
+
+Next, provide the user options to smooth the data. This consists of different basis function types and options for the amount of smoothing of the data.
 
 ```{r,create_funcs}
 #' Fit a spline to a collection of timeseries, with a possible roughness penalty
@@ -60,63 +117,7 @@ fits_from_params <- function(data_to_smooth,
 }
 ```
 
-```{r, timeseries_smoothing}
-
-#' Generate some toy climate timeseries
-#' 
-#' @param arg_vals_days Vector (numeric). The timepoints for evaluation.
-#' @param num_reps Numeric. Number of different timeseries.
-#' @param mean_of_noise Numeric. Mean of noise (within ARIMA model).
-#' @param spread_trends Numeric. Spread of the trends about 0.
-#' @param spread_consts Numeric. Spread of the const values about 40.
-generate_toy_climate_data <- function(
-  arg_vals_days = 1:(2*365),
-  num_reps = 2,
-  mean_of_noise = 0.02,
-  spread_trends = 5,
-  spread_consts = 10,
-  seed_in = 123
-){
-  set.seed(seed_in)  # for reproducibility
-  trends = runif(num_reps, min = -spread_trends, max = spread_trends)
-  consts = runif(num_reps, min = 40 - spread_consts, max = 40 + spread_consts)
-  
-  eg_df <- data.frame(matrix(nrow = length(arg_vals_days),
-                             ncol = num_reps))
-  colnames(eg_df) <- 1:num_reps
-  
-  for (j in 1:num_reps) {
-    eg_fluc_data <- sapply(
-      arg_vals_days,
-      function(i) {
-        consts[j] + trends[j]*(i/365)**2 + 5*cos(i*2*pi/365) + 0.3 * sin(i*pi/3)
-      }
-    ) + arima.sim(
-      length(arg_vals_days),
-      mean = mean_of_noise,
-      model = list(order = c(1,0,0), ar = 0.9)
-    )
-    eg_df[, j] <- eg_fluc_data
-  }
-  return(eg_df)
-}
-
-matplot(
-  generate_toy_climate_data(num_reps = 5,
-                            spread_consts = 10), 
-  type = 'l', 
-  col = 1:5, 
-  lty = 1,
-  main = "Examples of simulated timeseries",
-  xlab = "Time (days)",
-  ylab = "Value"
-)
-```
-
-You can fit this data multiple ways:
-- a standard fourier basis, with few basis functions
-- a standard fourier basis, with many basis functions, and smoothing
-- same as above but with bspline basis
+Here are some specific examples of 'smoothed' output data. The user would be expected to select an appropriate smoothing by eye. (In general, there is no algorithmic approach to smooth a function perfectly and this is extremely variable depending on the dataset!)
 
 ```{r, smooth}
 example_data <- generate_toy_climate_data(num_reps = 5,
@@ -140,10 +141,10 @@ lines(basic_output_fits,
       lty = 1)
 ```
 
-You can also smooth this data by taking the rolling average:
+You can also smooth this data by taking the rolling average, as a pre-processing step before smoothing:
 
 ```{r, rolling_average}
-
+# apply rollmean to each column, which contains an independent replicate
 rolling_data <- apply(example_data, 2, function(col_in) {
   zoo::rollmean(col_in, k = 100)
 })
@@ -154,10 +155,111 @@ matplot(rolling_data, type = 'l', col = 1:5, lty = 1,
         ylab = "Value")
 ```
 
-## Simluating economic data
+## Simulating economic data
 
 For now, we can simulate some economic data by taking subsets of the climate data at specific timepoints.
 
 ```{r, simulate_economic_data}
 
+#' Takes an fd object (from FDA package), which  is assumed to be a densely timeseries, and produces a noisy and sparse subsample.
+#'
+#' @param climate_timeseries_fd fd object. The smoothed timeseries to manipulate into producing a sampled timeseries.
+#' @param time_vec Numeric vector. Corresponds to the timepoints of climate_timeseries_fd to predict. NOTE: that the dataset will be manipulated and then sparsely sampled to match this.
+#' @param x_stretch Numeric. The amount the 'stretch' the timeseries in the x (time) direction. For example, asking for timepoints 0, 2, 4 and asking for an x-stretch of 1/2 would actually sample timepoints 0, 1, 2.
+#' @param y_stretch Numeric. The amount the 'stretch' the timeseries in the y (output) direction.
+#' @param noise_level Numeric. The standard deviation of ARIMA model noise added in addition to the sampling.
+reduce_climate_to_sparse <- function(climate_timeseries_fd,
+                                     time_vec,
+                                     which_rep = 1,
+                                     x_stretch = 1,
+                                     y_stretch = 1,
+                                     noise_level = 1e-2) {
+  
+  # do x-shift
+  min_time <- min(time_vec)
+  max_time <- max(time_vec)
+  freq_timeseries <- seq(min_time, max_time, length.out = 1000)
+  new_eval_points <- (freq_timeseries - min_time) * x_stretch + min_time
+  output_data <- fda::eval.fd(new_eval_points, climate_timeseries_fd)[, which_rep]
+  
+  # do y-shift
+  output_data <- (output_data - min(output_data)) * y_stretch + min(output_data)
+  
+  # add noise
+  output_data <- output_data + rnorm(length(output_data), sd = noise_level)
+  
+  # return evenly spaced timepoints
+  sparse_sampling_pts <- seq(
+    from = 1, 
+    to = length(output_data),
+    length.out = length(time_vec)
+  )
+  
+  return(output_data[sparse_sampling_pts])
+}
+```
+
+For example, we get this output, when creating a subset of the dataset for days:
+
+``` {r, example_of_sparse_sampler}
+full_evaluated_seq <- fda::eval.fd(arg_vals_days, basic_output_fits$fd)[,1]
+
+sparse_tps <- seq(from = 100, to = 500, by = 50)
+eg_econ_data_full <- reduce_climate_to_sparse(
+  basic_output_fits[1]$fd,
+  sparse_tps,
+  x_stretch = 1,
+  y_stretch = 1.5,
+  noise_level = 1e-2
+)
+eg_econ_data_short <- reduce_climate_to_sparse(
+  basic_output_fits[1]$fd,
+  sparse_tps,
+  x_stretch = 4/5,
+  y_stretch = 1,
+  noise_level = 1e-2
+)
+
+set.seed(123)
+spread_of_negative_control <- sd(eg_econ_data_full) / 2
+eg_uncorrelated_timeseries <- rnorm(n = length(sparse_tps),
+                                    mean = mean(eg_econ_data_short),
+                                    sd = spread_of_negative_control)
+
+
+plot(arg_vals_days, full_evaluated_seq, type = "l", ylim = c(15, 40))
+lines(sparse_tps, eg_econ_data_full, type = "l", col = "purple")
+lines(sparse_tps, eg_econ_data_short, type = "l", col = "red")
+lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "green")
+```
+
+## Example of searching the dataset
+
+``` {r, compare_short_climate}
+eg_econ_full_dtw <- dtw::dtw(
+  full_evaluated_seq,
+  eg_econ_data_full,
+  open.end = TRUE,
+  open.begin = TRUE,
+  step.pattern = dtw::asymmetric
+)
+print(paste0("Distance from black to purple: ", eg_econ_full_dtw$distance))
+
+eg_econ_short_dtw <- dtw::dtw(
+  full_evaluated_seq,
+  eg_econ_data_short,
+  open.end = TRUE,
+  open.begin = TRUE,
+  step.pattern = dtw::asymmetric
+)
+print(paste0("Distance from black to red: ", eg_econ_short_dtw$distance))
+
+eg_uncor_dtw <- dtw::dtw(
+  full_evaluated_seq,
+  eg_uncorrelated_timeseries,
+  open.end = TRUE,
+  open.begin = TRUE,
+  step.pattern = dtw::asymmetric
+)
+print(paste0("Distance from black to green: ", eg_uncor_dtw$distance))
 ```
