@@ -228,6 +228,7 @@ eg_uncorrelated_timeseries <- rnorm(n = length(sparse_tps),
 
 
 plot(arg_vals_days, full_evaluated_seq, type = "l", ylim = c(15, 40))
+lines(arg_vals_days, example_data[,1], col = "grey")
 lines(sparse_tps, eg_econ_data_full, type = "l", col = "purple")
 lines(sparse_tps, eg_econ_data_short, type = "l", col = "red")
 lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "green")

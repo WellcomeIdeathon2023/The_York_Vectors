@@ -1,0 +1,9 @@
+
+Retrieved from Columbia IRI data library [here](http://iridl.ldeo.columbia.edu/SOURCES/.NOAA/.NCDC/.GHCN/.v2beta/lon/(-2)/(2)/masknotrange/SELECT/lat/(52)/(55)/masknotrange/SELECT/) on 10/07/2023.
+
+- `[IMWO+T]datatable.tsv` contains the precipitation information, ordered by IMWO station codes and time points. Note that time (in rows) corresponds to: "grid: /T (months since 1960-01-01) ordered (Jan 1697) to (Nov 2013) by 1.0 N= 3803 pts :grid"
+- `station_ids.txt` contains the names of each station, ordered by id.
+- `longitude.txt` contains longitude info for each station
+- `latitude.txt` contains latitude info for each station
+
+These stations were selected to compare to UK economic data. They have a latitude between 52 and 55N and a longitude of 2W and 2E.
