@@ -236,6 +236,73 @@ lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "green")
 
 ## Example of searching the dataset
 
+This has an advantage over other distance metrics, such as the standard Euclidean distance metric, as these often make incorrect assumptions about timeseries. For example, if a timeseries has a lag, the standard Euclidean distance can be large, despite the two curves having the same shape.
+
+A 'shape-based' metric may be much more effective at spotting similarities between shifted timeseries.
+
+``` {r, low_correlation}
+time_sine <- seq(from = 0, to = 2*pi, by = 1e-2)
+y_sin1 <- sapply(time_sine, sin)
+y_sin2 <- sapply(time_sine, function(i) sin(i+0.5*pi))
+y_sin3 <- sapply(time_sine, function(i) sin(i+0.1*pi))
+
+plot(time_sine, y_sin1, type = "l", xlab = "Time", ylab = "Value")
+lines(time_sine, y_sin2, type = "l", col = "purple")
+lines(time_sine, y_sin3, type = "l", col = "red")
+
+print(paste0("Euclidean (standard) distance of black to purple timeseries: ", dist(rbind(y_sin1, y_sin2))))
+print(paste0("DTW distance between these two timeseries is: ",
+             dtw::dtw(y_sin1,
+                      y_sin2,
+                      open.end = TRUE)$normalizedDistance))
+
+print(paste0("Euclidean (standard) distance of black to red timeseries: ", dist(rbind(y_sin1, y_sin3))))
+print(paste0("DTW distance black to red timeseries is: ",
+             dtw::dtw(y_sin1, y_sin3,
+                      open.end = TRUE)$normalizedDistance))
+
+
+```
+
+[Dynamic Time Warping](https://en.wikipedia.org/wiki/Dynamic_time_warping) provides a method to compares two timeseries, which allows for realistic "stretching" of one timeseries against another.
+
+For example, we get this output, when creating a subset of the dataset for days:
+
+``` {r, example_of_sparse_sampler}
+full_evaluated_seq <- fda::eval.fd(arg_vals_days, basic_output_fits$fd)[,1]
+
+sparse_tps <- seq(from = 100, to = 500, by = 50)
+eg_econ_data_full <- reduce_climate_to_sparse(
+  basic_output_fits[1]$fd,
+  sparse_tps,
+  x_stretch = 1,
+  y_stretch = 1.5,
+  noise_level = 1e-2
+)
+eg_econ_data_short <- reduce_climate_to_sparse(
+  basic_output_fits[1]$fd,
+  sparse_tps,
+  x_stretch = 4/5,
+  y_stretch = 1,
+  noise_level = 1e-2
+)
+
+set.seed(123)
+spread_of_negative_control <- sd(eg_econ_data_full) / 2
+eg_uncorrelated_timeseries <- rnorm(n = length(sparse_tps),
+                                    mean = mean(eg_econ_data_short),
+                                    sd = spread_of_negative_control)
+
+
+plot(arg_vals_days, full_evaluated_seq, type = "l", ylim = c(15, 40))
+lines(arg_vals_days, example_data[,1], col = "grey")
+lines(sparse_tps, eg_econ_data_full, type = "l", col = "purple")
+lines(sparse_tps, eg_econ_data_short, type = "l", col = "red")
+lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "green")
+```
+
+## Example of searching the dataset
+
 ``` {r, compare_short_climate}
 eg_econ_full_dtw <- dtw::dtw(
   full_evaluated_seq,
@@ -244,7 +311,7 @@ eg_econ_full_dtw <- dtw::dtw(
   open.begin = TRUE,
   step.pattern = dtw::asymmetric
 )
-print(paste0("Distance from black to purple: ", eg_econ_full_dtw$distance))
+print(paste0("Distance from black to purple: ", eg_econ_full_dtw$normalizedDistance))
 
 eg_econ_short_dtw <- dtw::dtw(
   full_evaluated_seq,
@@ -253,7 +320,7 @@ eg_econ_short_dtw <- dtw::dtw(
   open.begin = TRUE,
   step.pattern = dtw::asymmetric
 )
-print(paste0("Distance from black to red: ", eg_econ_short_dtw$distance))
+print(paste0("Distance from black to red: ", eg_econ_short_dtw$normalizedDistance))
 
 eg_uncor_dtw <- dtw::dtw(
   full_evaluated_seq,
@@ -262,5 +329,5 @@ eg_uncor_dtw <- dtw::dtw(
   open.begin = TRUE,
   step.pattern = dtw::asymmetric
 )
-print(paste0("Distance from black to green: ", eg_uncor_dtw$distance))
+print(paste0("Distance from black to green: ", eg_uncor_dtw$normalizedDistance))
 ```
