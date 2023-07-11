@@ -18,12 +18,13 @@ generate_toy_climate_data <- function(
   num_reps = 2,
   mean_of_noise = 0.02,
   spread_trends = 5,
+  const_avg = 100,
   spread_consts = 10,
   seed_in = 123
 ){
   set.seed(seed_in)  # for reproducibility
   trends = runif(num_reps, min = -spread_trends, max = spread_trends)
-  consts = runif(num_reps, min = 40 - spread_consts, max = 40 + spread_consts)
+  consts = runif(num_reps, min = const_avg - spread_consts, max = const_avg + spread_consts)
   
   eg_df <- data.frame(matrix(nrow = length(arg_vals_days),
                              ncol = num_reps))
@@ -33,7 +34,7 @@ generate_toy_climate_data <- function(
     eg_fluc_data <- sapply(
       arg_vals_days,
       function(i) {
-        consts[j] + trends[j]*(i/365)**2 + 5*cos(i*2*pi/365) + 0.3 * sin(i*pi/3)
+        consts[j] + trends[j]*(i/365)**3 + 5*cos(i*2*pi/365) + 0.3 * sin(i*pi/3)
       }
     ) + arima.sim(
       length(arg_vals_days),
@@ -45,9 +46,16 @@ generate_toy_climate_data <- function(
   return(eg_df)
 }
 
+arg_vals_days <- 1:(5*365)
+example_data <- generate_toy_climate_data(
+  arg_vals_days = arg_vals_days,
+  num_reps = 5,
+  spread_trends = 0.8,
+  spread_consts = 10
+)
+
 matplot(
-  generate_toy_climate_data(num_reps = 5,
-                            spread_consts = 10), 
+  example_data, 
   type = 'l', 
   col = 1:5, 
   lty = 1,
@@ -120,18 +128,15 @@ fits_from_params <- function(data_to_smooth,
 Here are some specific examples of 'smoothed' output data. The user would be expected to select an appropriate smoothing by eye. (In general, there is no algorithmic approach to smooth a function perfectly and this is extremely variable depending on the dataset!)
 
 ```{r, smooth}
-example_data <- generate_toy_climate_data(num_reps = 5,
-                            spread_consts = 10)
-arg_vals_days <- 1:(2*365)
-
 basic_output_fits <- fits_from_params(
   as.matrix(example_data),
   arg_vals_days,
-  10,
+  20,
   lambda_in = 50,
-  basis_type = "fourier"
+  basis_type = "bspline"
 )
 
+png("../results/good_timeseries_fits.png", width = 600, height = 500, pointsize = 16)
 matplot(example_data, type = 'l', col = 1:5, lty = 1,
         main = "Examples of fits to timeseries",
         xlab = "Time (days)",
@@ -139,6 +144,28 @@ matplot(example_data, type = 'l', col = 1:5, lty = 1,
 lines(basic_output_fits, 
       col = 1:5,
       lty = 1)
+dev.off()
+```
+Be aware - this can go wrong easily!
+
+```{r, smooth}
+basic_output_fits <- fits_from_params(
+  as.matrix(example_data),
+  arg_vals_days,
+  8,
+  lambda_in = 500,
+  basis_type = "bspline"
+)
+
+png("../results/bad_timeseries_fits.png", width = 600, height = 500, pointsize = 16)
+matplot(example_data, type = 'l', col = 1:5, lty = 1,
+        main = "Poor fits to timeseries",
+        xlab = "Time (days)",
+        ylab = "Value")
+lines(basic_output_fits, 
+      col = 1:5,
+      lty = 1)
+dev.off()
 ```
 
 You can also smooth this data by taking the rolling average, as a pre-processing step before smoothing:
@@ -199,123 +226,67 @@ reduce_climate_to_sparse <- function(climate_timeseries_fd,
 }
 ```
 
-For example, we get this output, when creating a subset of the dataset for days:
+## Example of searching the dataset
+
+This has an advantage over other distance metrics, such as the standard Euclidean distance metric, as these often make incorrect assumptions about timeseries. For example, if a timeseries has a lag, the standard Euclidean distance can be large, despite the two curves having the same shape. A 'shape-based' metric may be much more effective at spotting similarities between shifted timeseries.
+
+In order to compare the densely-sample timeseries with the sparse one, we first need to subsample our approximation of the timeseries.
+
+```{r, example_revisited}
+plot(sparse_climate_tps, full_evaluated_seq, type = "l", ylim = c(50, 105))
+lines(arg_vals_days, example_data[,1], col = "grey")
+```
+
+[Dynamic Time Warping](https://en.wikipedia.org/wiki/Dynamic_time_warping) provides a method to compares two timeseries, which allows for realistic "stretching" of one timeseries against another. Additionally, as a dynamic programming algorithm, it is possible to search for a subset of a fit within the data.
 
 ``` {r, example_of_sparse_sampler}
-full_evaluated_seq <- fda::eval.fd(arg_vals_days, basic_output_fits$fd)[,1]
+sparse_climate_tps <- seq(from = 1, to = 5*365, by = 100)
+full_evaluated_seq <- fda::eval.fd(sparse_climate_tps, basic_output_fits$fd)[,1]
 
-sparse_tps <- seq(from = 100, to = 500, by = 50)
+sparse_tps <- seq(from = 366, to = 4*365, by = 100)
 eg_econ_data_full <- reduce_climate_to_sparse(
   basic_output_fits[1]$fd,
   sparse_tps,
   x_stretch = 1,
-  y_stretch = 1.5,
-  noise_level = 1e-2
+  y_stretch = 1.1,
+  noise_level = 0.1
 )
+
 eg_econ_data_short <- reduce_climate_to_sparse(
   basic_output_fits[1]$fd,
   sparse_tps,
-  x_stretch = 4/5,
-  y_stretch = 1,
+  x_stretch = 1/2,
   noise_level = 1e-2
 )
 
 set.seed(123)
-spread_of_negative_control <- sd(eg_econ_data_full) / 2
-eg_uncorrelated_timeseries <- rnorm(n = length(sparse_tps),
-                                    mean = mean(eg_econ_data_short),
-                                    sd = spread_of_negative_control)
+spread_of_negative_control <- sd(eg_econ_data_short) / 10
+eg_uncorrelated_timeseries <- rep(c(-5, 15, 0, -5, 5), length.out = length(sparse_tps)) +
+  rnorm(n = length(sparse_tps),
+  mean = mean(eg_econ_data_short),
+  sd = spread_of_negative_control)
 
 
-plot(arg_vals_days, full_evaluated_seq, type = "l", ylim = c(15, 40))
+plot(sparse_climate_tps, full_evaluated_seq, type = "l", ylim = c(50, 105),
+     xlab = "Time (days)", ylab = "Value", main = "All plots")
 lines(arg_vals_days, example_data[,1], col = "grey")
-lines(sparse_tps, eg_econ_data_full, type = "l", col = "purple")
-lines(sparse_tps, eg_econ_data_short, type = "l", col = "red")
-lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "green")
+lines(sparse_tps + 400, eg_econ_data_full, type = "l", col = "purple", lwd = 2)
+lines(sparse_tps, eg_econ_data_short, type = "l", col = "red", lwd = 2)
+lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "darkgreen", lty = "dashed", lwd = 2)
 ```
-
-## Example of searching the dataset
-
-This has an advantage over other distance metrics, such as the standard Euclidean distance metric, as these often make incorrect assumptions about timeseries. For example, if a timeseries has a lag, the standard Euclidean distance can be large, despite the two curves having the same shape.
-
-A 'shape-based' metric may be much more effective at spotting similarities between shifted timeseries.
-
-``` {r, low_correlation}
-time_sine <- seq(from = 0, to = 2*pi, by = 1e-2)
-y_sin1 <- sapply(time_sine, sin)
-y_sin2 <- sapply(time_sine, function(i) sin(i+0.5*pi))
-y_sin3 <- sapply(time_sine, function(i) sin(i+0.1*pi))
-
-plot(time_sine, y_sin1, type = "l", xlab = "Time", ylab = "Value")
-lines(time_sine, y_sin2, type = "l", col = "purple")
-lines(time_sine, y_sin3, type = "l", col = "red")
-
-print(paste0("Euclidean (standard) distance of black to purple timeseries: ", dist(rbind(y_sin1, y_sin2))))
-print(paste0("DTW distance between these two timeseries is: ",
-             dtw::dtw(y_sin1,
-                      y_sin2,
-                      open.end = TRUE)$normalizedDistance))
-
-print(paste0("Euclidean (standard) distance of black to red timeseries: ", dist(rbind(y_sin1, y_sin3))))
-print(paste0("DTW distance black to red timeseries is: ",
-             dtw::dtw(y_sin1, y_sin3,
-                      open.end = TRUE)$normalizedDistance))
-
-
-```
-
-[Dynamic Time Warping](https://en.wikipedia.org/wiki/Dynamic_time_warping) provides a method to compares two timeseries, which allows for realistic "stretching" of one timeseries against another.
-
-For example, we get this output, when creating a subset of the dataset for days:
-
-``` {r, example_of_sparse_sampler}
-full_evaluated_seq <- fda::eval.fd(arg_vals_days, basic_output_fits$fd)[,1]
-
-sparse_tps <- seq(from = 100, to = 500, by = 50)
-eg_econ_data_full <- reduce_climate_to_sparse(
-  basic_output_fits[1]$fd,
-  sparse_tps,
-  x_stretch = 1,
-  y_stretch = 1.5,
-  noise_level = 1e-2
-)
-eg_econ_data_short <- reduce_climate_to_sparse(
-  basic_output_fits[1]$fd,
-  sparse_tps,
-  x_stretch = 4/5,
-  y_stretch = 1,
-  noise_level = 1e-2
-)
-
-set.seed(123)
-spread_of_negative_control <- sd(eg_econ_data_full) / 2
-eg_uncorrelated_timeseries <- rnorm(n = length(sparse_tps),
-                                    mean = mean(eg_econ_data_short),
-                                    sd = spread_of_negative_control)
-
-
-plot(arg_vals_days, full_evaluated_seq, type = "l", ylim = c(15, 40))
-lines(arg_vals_days, example_data[,1], col = "grey")
-lines(sparse_tps, eg_econ_data_full, type = "l", col = "purple")
-lines(sparse_tps, eg_econ_data_short, type = "l", col = "red")
-lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "green")
-```
-
-## Example of searching the dataset
-
 ``` {r, compare_short_climate}
 eg_econ_full_dtw <- dtw::dtw(
-  full_evaluated_seq,
   eg_econ_data_full,
+  full_evaluated_seq,
   open.end = TRUE,
   open.begin = TRUE,
-  step.pattern = dtw::asymmetric
+  step.pattern = dtw::asymmetricP05
 )
 print(paste0("Distance from black to purple: ", eg_econ_full_dtw$normalizedDistance))
 
 eg_econ_short_dtw <- dtw::dtw(
-  full_evaluated_seq,
   eg_econ_data_short,
+  full_evaluated_seq,
   open.end = TRUE,
   open.begin = TRUE,
   step.pattern = dtw::asymmetric
@@ -323,11 +294,74 @@ eg_econ_short_dtw <- dtw::dtw(
 print(paste0("Distance from black to red: ", eg_econ_short_dtw$normalizedDistance))
 
 eg_uncor_dtw <- dtw::dtw(
-  full_evaluated_seq,
   eg_uncorrelated_timeseries,
+  full_evaluated_seq,
   open.end = TRUE,
   open.begin = TRUE,
   step.pattern = dtw::asymmetric
 )
 print(paste0("Distance from black to green: ", eg_uncor_dtw$normalizedDistance))
 ```
+
+
+``` {r, separate_plots}
+png("../results/shifted.png", pointsize = 16, width = 700, height = 500)
+plot(sparse_climate_tps, full_evaluated_seq, type = "l", ylim = c(50, 105),
+     xlab = "Time (days)", ylab = "Value", main = "Shifted timeseries")
+lines(arg_vals_days, example_data[,1], col = "grey")
+lines(sparse_tps + 400, eg_econ_data_full, type = "l", col = "purple", lwd = 2)
+text(230, 54, paste0("DTW distance = ", sprintf("%.2f",  eg_econ_full_dtw$normalizedDistance)))
+dev.off()
+
+png("../results/scaled.png", pointsize = 16, width = 700, height = 500)
+plot(sparse_climate_tps, full_evaluated_seq, type = "l", ylim = c(50, 105),
+     xlab = "Time (days)", ylab = "Value", main = "Misaligned peaks")
+lines(arg_vals_days, example_data[,1], col = "grey")
+lines(sparse_tps, eg_econ_data_short, type = "l", col = "red", lwd = 2)
+text(230, 54, paste0("DTW distance = ", sprintf("%.2f",  eg_econ_short_dtw$normalizedDistance)))
+dev.off()
+
+png("../results/uncorrelated.png", pointsize = 16, width = 700, height = 500)
+plot(sparse_climate_tps, full_evaluated_seq, type = "l", ylim = c(50, 105),
+     xlab = "Time (days)", ylab = "Value", main = "No correlation")
+lines(arg_vals_days, example_data[,1], col = "grey")
+lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "darkgreen", lty = "dashed", lwd = 2)
+text(230, 54, paste0("DTW distance = ", sprintf("%.2f",  eg_uncor_dtw$normalizedDistance)))
+dev.off()
+```
+
+## Example of searching the dataset
+
+
+
+## Read in some real data and repeat this!
+
+``` {r, climate_data_input}
+climate_df <- read.delim("../data/[IWMO+T]datatable.tsv", row.names = 1)
+colnames(climate_df) <- sapply(colnames(climate_df), function(i){
+  output <- gsub("X", "", i)
+  output <- gsub("E.", "E", output)
+  return(as.character(as.numeric(output)))
+})
+climate_df$month <- as.numeric(row.names(climate_df))
+
+timepoints_from_2000 <- (climate_df$month > 40*12)
+climate_df <- climate_df[timepoints_from_2000, ]
+# NOTE FOR TIMINGS: 0 = January 1960, and months are relevant to this!
+
+longitude_df <- read.delim("../data/longitude.txt", skip = 2, col.names = c("station", "longitude"))
+
+station_names_df <- read.delim("../data/station_ids.txt", skip = 2, col.names = c("station", "name"))
+
+# # impute the NAs with mean for now
+# for(i in 1:ncol(climate_df)){
+#   climate_df[is.na(climate_df[,i]), i] <- mean(climate_df[,i], na.rm = TRUE)
+# }
+# 
+
+
+plot(climate_df$month,
+     climate_df[, 41])
+
+```
+
