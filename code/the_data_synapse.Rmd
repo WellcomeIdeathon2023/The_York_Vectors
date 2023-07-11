@@ -148,8 +148,8 @@ dev.off()
 ```
 Be aware - this can go wrong easily!
 
-```{r, smooth}
-basic_output_fits <- fits_from_params(
+```{r, smooth_bad}
+basic_output_fits_bad <- fits_from_params(
   as.matrix(example_data),
   arg_vals_days,
   8,
@@ -162,7 +162,7 @@ matplot(example_data, type = 'l', col = 1:5, lty = 1,
         main = "Poor fits to timeseries",
         xlab = "Time (days)",
         ylab = "Value")
-lines(basic_output_fits, 
+lines(basic_output_fits_bad, 
       col = 1:5,
       lty = 1)
 dev.off()
@@ -231,11 +231,6 @@ reduce_climate_to_sparse <- function(climate_timeseries_fd,
 This has an advantage over other distance metrics, such as the standard Euclidean distance metric, as these often make incorrect assumptions about timeseries. For example, if a timeseries has a lag, the standard Euclidean distance can be large, despite the two curves having the same shape. A 'shape-based' metric may be much more effective at spotting similarities between shifted timeseries.
 
 In order to compare the densely-sample timeseries with the sparse one, we first need to subsample our approximation of the timeseries.
-
-```{r, example_revisited}
-plot(sparse_climate_tps, full_evaluated_seq, type = "l", ylim = c(50, 105))
-lines(arg_vals_days, example_data[,1], col = "grey")
-```
 
 [Dynamic Time Warping](https://en.wikipedia.org/wiki/Dynamic_time_warping) provides a method to compares two timeseries, which allows for realistic "stretching" of one timeseries against another. Additionally, as a dynamic programming algorithm, it is possible to search for a subset of a fit within the data.
 
@@ -328,40 +323,5 @@ lines(arg_vals_days, example_data[,1], col = "grey")
 lines(sparse_tps, eg_uncorrelated_timeseries, type = "l", col = "darkgreen", lty = "dashed", lwd = 2)
 text(230, 54, paste0("DTW distance = ", sprintf("%.2f",  eg_uncor_dtw$normalizedDistance)))
 dev.off()
-```
-
-## Example of searching the dataset
-
-
-
-## Read in some real data and repeat this!
-
-``` {r, climate_data_input}
-climate_df <- read.delim("../data/[IWMO+T]datatable.tsv", row.names = 1)
-colnames(climate_df) <- sapply(colnames(climate_df), function(i){
-  output <- gsub("X", "", i)
-  output <- gsub("E.", "E", output)
-  return(as.character(as.numeric(output)))
-})
-climate_df$month <- as.numeric(row.names(climate_df))
-
-timepoints_from_2000 <- (climate_df$month > 40*12)
-climate_df <- climate_df[timepoints_from_2000, ]
-# NOTE FOR TIMINGS: 0 = January 1960, and months are relevant to this!
-
-longitude_df <- read.delim("../data/longitude.txt", skip = 2, col.names = c("station", "longitude"))
-
-station_names_df <- read.delim("../data/station_ids.txt", skip = 2, col.names = c("station", "name"))
-
-# # impute the NAs with mean for now
-# for(i in 1:ncol(climate_df)){
-#   climate_df[is.na(climate_df[,i]), i] <- mean(climate_df[,i], na.rm = TRUE)
-# }
-# 
-
-
-plot(climate_df$month,
-     climate_df[, 41])
-
 ```
 
